@@ -8,14 +8,42 @@ use Illuminate\Support\Facades\Artisan;
 Route::post('/run-seed', function () {
     try {
         Artisan::call('db:seed');
+        $output = Artisan::output();
+        
+        // Check if users were actually created
+        $userCount = \App\Models\User::count();
+        
         return response()->json([
             'message' => 'Database seeded successfully!',
-            'status'  => 'success'
+            'status'  => 'success',
+            'user_count' => $userCount,
+            'artisan_output' => $output
         ], 200);
     } catch (\Exception $e) {
         return response()->json([
             'message' => 'Seeding failed: ' . $e->getMessage(),
-            'status'  => 'error'
+            'status'  => 'error',
+            'trace' => $e->getTraceAsString()
+        ], 500);
+    }
+});
+
+// ── Migration endpoint ───────────────────────────────────────
+Route::post('/run-migrate', function () {
+    try {
+        Artisan::call('migrate');
+        $output = Artisan::output();
+        
+        return response()->json([
+            'message' => 'Migrations run successfully!',
+            'status'  => 'success',
+            'artisan_output' => $output
+        ], 200);
+    } catch (\Exception $e) {
+        return response()->json([
+            'message' => 'Migration failed: ' . $e->getMessage(),
+            'status'  => 'error',
+            'trace' => $e->getTraceAsString()
         ], 500);
     }
 });
