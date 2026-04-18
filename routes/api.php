@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Artisan;
 // ── Seeding endpoint (admin only) ────────────────────────────
 Route::post('/run-seed', function () {
     try {
-        Artisan::call('db:seed');
+        Artisan::call('db:seed', ['--force' => true]);
         $output = Artisan::output();
         
         // Check if users were actually created
@@ -31,7 +31,7 @@ Route::post('/run-seed', function () {
 // ── Migration endpoint ───────────────────────────────────────
 Route::post('/run-migrate', function () {
     try {
-        Artisan::call('migrate');
+        Artisan::call('migrate', ['--force' => true]);
         $output = Artisan::output();
         
         return response()->json([
