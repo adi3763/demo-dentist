@@ -1,6 +1,13 @@
 <?php
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
+use Illuminate\Support\Facades\Artisan;
+
+
+Route::get('/run-seed', function () {
+    Artisan::call('db:seed');
+    return "Database seeded!";
+});
 
 // ── Public (no token needed) ─────────────────────────────────
 Route::post('/login', [AuthController::class, 'login']);
