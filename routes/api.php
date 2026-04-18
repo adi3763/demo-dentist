@@ -46,3 +46,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // PATCH /api/doctor/appointments/{id}  (mark complete)
     });
 });
+
+Route::get('/debug/users', function () {
+    return \App\Models\User::all();
+});
