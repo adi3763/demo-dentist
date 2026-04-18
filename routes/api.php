@@ -4,9 +4,20 @@ use App\Http\Controllers\Api\AuthController;
 use Illuminate\Support\Facades\Artisan;
 
 
-Route::get('/run-seed', function () {
-    Artisan::call('db:seed');
-    return "Database seeded!";
+// ── Seeding endpoint (admin only) ────────────────────────────
+Route::post('/run-seed', function () {
+    try {
+        Artisan::call('db:seed');
+        return response()->json([
+            'message' => 'Database seeded successfully!',
+            'status'  => 'success'
+        ], 200);
+    } catch (\Exception $e) {
+        return response()->json([
+            'message' => 'Seeding failed: ' . $e->getMessage(),
+            'status'  => 'error'
+        ], 500);
+    }
 });
 
 // ── Public (no token needed) ─────────────────────────────────
