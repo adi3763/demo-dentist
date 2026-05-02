@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\AppointmentController;
 use App\Http\Controllers\Api\Doctor\ScheduleController;
 use App\Http\Controllers\Api\Doctor\AppointmentController as DoctorAppointmentController;
 use App\Http\Controllers\Api\Admin\UserController as AdminUserController;
+use App\Http\Controllers\Api\ContactController;
 
 
 // ── Public (no token needed) ─────────────────────────────────
@@ -16,6 +17,8 @@ Route::get('/services',         [SlotController::class, 'services']);
 Route::get('/slots',            [SlotController::class, 'available']);
 Route::get('/appointments',     [AppointmentController::class, 'index']);
 Route::post('/appointments',    [AppointmentController::class, 'store']);
+Route::post('/contact',      [ContactController::class, 'store']);
+
 
 // ── Any logged in user (admin or doctor) ─────────────────────
 Route::middleware('auth:sanctum')->group(function () {
