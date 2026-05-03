@@ -1,18 +1,15 @@
 <?php
-
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
-use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
-    /** @use HasFactory<UserFactory> */
-    use HasApiTokens, Notifiable;
+    use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
 
     protected $fillable = [
         'name',
@@ -33,7 +30,8 @@ class User extends Authenticatable
         'is_active' => 'boolean',
     ];
 
-    // Role check helpers — use these everywhere
+    // ── Role helpers ────────────────────────────────────────
+
     public function isAdmin(): bool
     {
         return $this->role === 'admin';
@@ -44,18 +42,25 @@ class User extends Authenticatable
         return $this->role === 'doctor';
     }
 
+    // ── Relationships ────────────────────────────────────────
+
+    public function profile()
+    {
+        return $this->hasOne(DoctorProfile::class);
+    }
+
     public function schedules()
-{
-    return $this->hasMany(DoctorSchedule::class);
-}
+    {
+        return $this->hasMany(DoctorSchedule::class);
+    }
 
-public function appointments()
-{
-    return $this->hasMany(Appointment::class, 'doctor_id');
-}
+    public function appointments()
+    {
+        return $this->hasMany(Appointment::class, 'doctor_id');
+    }
 
-public function blockedDates()
-{
-    return $this->hasMany(BlockedDate::class);
-}
+    public function blockedDates()
+    {
+        return $this->hasMany(BlockedDate::class);
+    }
 }
