@@ -30,6 +30,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me',      [AuthController::class, 'me']);
 
+    // Doctor list is visible to admins and doctors; write actions remain admin-only.
+    Route::middleware('is_doctor')->prefix('admin')->group(function () {
+        Route::get('/users', [AdminUserController::class, 'index']);
+    });
+
     // ── Doctor ───────────────────────────────────────────────
     Route::middleware('is_doctor')->prefix('doctor')->group(function () {
 
@@ -56,7 +61,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('is_admin')->prefix('admin')->group(function () {
 
         // Doctor account management
-        Route::get('/users',                    [AdminUserController::class, 'index']);
         Route::post('/users',                   [AdminUserController::class, 'store']);
         Route::patch('/users/{id}',             [AdminUserController::class, 'update']);
         Route::patch('/users/{id}/toggle',      [AdminUserController::class, 'toggle']);
