@@ -12,7 +12,7 @@ use App\Mail\OtpMail;
 class UserController extends Controller
 {
     // GET /api/admin/users
-    // Admins manage all doctors; doctors can view active doctors only.
+    // Admins manage all doctors; doctors can view and filter non-deleted doctors.
     public function index(Request $request)
     {
         $query = User::where('role', 'doctor')
@@ -20,18 +20,20 @@ class UserController extends Controller
 
         if ($request->user()->isAdmin()) {
             $query->withTrashed();         // admin sees deleted ones too
+        }
 
-            // Filter: active only
-            if ($request->filter === 'active') {
-                $query->whereNull('deleted_at');
-            }
-
-            // Filter: deleted only
-            if ($request->filter === 'deleted') {
-                $query->onlyTrashed();
-            }
-        } else {
+        // Filter: active status, available to admins and doctors
+        if ($request->filter === 'active') {
             $query->where('is_active', true);
+        }
+
+        if ($request->filter === 'inactive') {
+            $query->where('is_active', false);
+        }
+
+        // Filter: deleted only, admin only
+        if ($request->user()->isAdmin() && $request->filter === 'deleted') {
+            $query->onlyTrashed();
         }
 
         $users = $query->select('id','name','email','phone','is_active','created_at','deleted_at')
