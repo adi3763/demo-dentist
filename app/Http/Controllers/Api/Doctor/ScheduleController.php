@@ -1,6 +1,7 @@
 <?php
 namespace App\Http\Controllers\Api\Doctor;
 
+
 use App\Http\Controllers\Controller;
 use App\Models\DoctorSchedule;
 use App\Models\BlockedDate;
@@ -107,5 +108,124 @@ class ScheduleController extends Controller
         $blocked->delete();
 
         return response()->json(['message' => 'Date unblocked.']);
+    }
+
+    // POST /api/doctor/schedule/bulk
+    public function bulkStore(Request $request)
+    {
+        $request->validate([
+            'slots'               => 'required|array|min:1',
+            'slots.*.day_of_week' => 'required|integer|between:0,6',
+            'slots.*.start_time'  => 'required|date_format:H:i',
+            'slots.*.end_time'    => 'required|date_format:H:i',
+        ]);
+
+        $created = 0;
+        $skipped = 0;
+
+        foreach ($request->slots as $slotData) {
+            $exists = DoctorSchedule::where('user_id', $request->user()->id)
+                                    ->where('day_of_week', $slotData['day_of_week'])
+                                    ->where('start_time', $slotData['start_time'] . ':00')
+                                    ->exists();
+
+            if ($exists) {
+                $skipped++;
+                continue;
+            }
+
+            DoctorSchedule::create([
+                'user_id'     => $request->user()->id,
+                'day_of_week' => $slotData['day_of_week'],
+                'start_time'  => $slotData['start_time'] . ':00',
+                'end_time'    => $slotData['end_time'] . ':00',
+                'is_active'   => true,
+            ]);
+
+            $created++;
+        }
+
+        return response()->json([
+            'message' => "{$created} slots added, {$skipped} already existed.",
+            'created' => $created,
+            'skipped' => $skipped,
+        ]);
+    }
+
+    // PATCH /api/doctor/schedule/{id}/toggle
+    public function toggle(Request $request, $id)
+    {
+        $slot = DoctorSchedule::where('user_id', $request->user()->id)
+                              ->findOrFail($id);
+
+        $slot->update(['is_active' => ! $slot->is_active]);
+
+        return response()->json([
+            'message'   => $slot->is_active ? 'Slot enabled.' : 'Slot disabled.',
+            'is_active' => $slot->is_active,
+        ]);
+    }
+
+    // DELETE /api/doctor/schedule/clear
+    public function clearDay(Request $request)
+    {
+        $request->validate([
+            'day_of_week' => 'required|integer|between:0,6',
+        ]);
+
+        $count = DoctorSchedule::where('user_id', $request->user()->id)
+                               ->where('day_of_week', $request->day_of_week)
+                               ->delete();
+
+        return response()->json([
+            'message' => "{$count} slots removed.",
+        ]);
+    }
+
+    // GET /api/doctor/blocked-dates
+    public function blockedDates(Request $request)
+    {
+        $blocked = BlockedDate::where('user_id', $request->user()->id)
+                              ->where('blocked_date', '>=', today())
+                              ->orderBy('blocked_date')
+                              ->get();
+
+        return response()->json(['blocked_dates' => $blocked]);
+    }
+
+    // POST /api/doctor/blocked-dates/bulk
+    public function bulkBlockDates(Request $request)
+    {
+        $request->validate([
+            'dates'          => 'required|array|min:1',
+            'dates.*.date'   => 'required|date|after_or_equal:today',
+            'dates.*.reason' => 'nullable|string|max:200',
+        ]);
+
+        $blocked = 0;
+        $skipped = 0;
+
+        foreach ($request->dates as $item) {
+            $exists = BlockedDate::where('user_id', $request->user()->id)
+                                 ->where('blocked_date', $item['date'])
+                                 ->exists();
+
+            if ($exists) {
+                $skipped++;
+                continue;
+            }
+
+            BlockedDate::create([
+                'user_id'      => $request->user()->id,
+                'blocked_date' => $item['date'],
+                'reason'       => $item['reason'] ?? null,
+            ]);
+
+            $blocked++;
+        }
+
+        return response()->json([
+            'message' => "{$blocked} dates blocked, {$skipped} already existed.",
+        ]);
     }
 }
