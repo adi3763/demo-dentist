@@ -5,28 +5,20 @@ use App\Http\Controllers\Controller;
 use App\Models\Appointment;
 use App\Models\DoctorSchedule;
 use App\Models\BlockedDate;
+use App\Models\User;
 use App\Services\WhatsAppService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Validator;
 use Carbon\Carbon;
 
 class AppointmentController extends Controller
 {
     public function __construct(protected WhatsAppService $whatsapp) {}
 
-    // GET /api/appointments
-    public function index()
-    {
-        return response()->json([
-            'message' => 'Method not allowed. Use POST /api/appointments to book an appointment.',
-        ], 405);
-    }
-
     // POST /api/appointments
     public function store(Request $request)
     {
-        $validator = Validator::make($request->all(), [
+        $validated = $request->validate([
             'doctor_id'        => 'required|exists:users,id',
             'patient_name'     => 'required|string|max:100',
             'patient_phone'    => 'required|string|max:20',
@@ -37,25 +29,9 @@ class AppointmentController extends Controller
             'patient_notes'    => 'nullable|string|max:500',
         ]);
 
-        if ($validator->fails()) {
-            return response()->json([
-                'message' => 'The given data was invalid.',
-                'errors'  => $validator->errors(),
-            ], 422);
-        }
-
-        $validated = $validator->validated();
-
         $date      = $validated['appointment_date'];
         $startTime = $validated['start_time'] . ':00';
         $doctorId  = $validated['doctor_id'];
-        $appointmentDateTime = Carbon::parse("{$date} {$startTime}");
-
-        if ($appointmentDateTime->lt(now())) {
-            return response()->json([
-                'message' => 'You can only book appointments for the current time or a future time.',
-            ], 422);
-        }
 
         // Check date not blocked
         if (BlockedDate::where('user_id', $doctorId)
@@ -66,7 +42,7 @@ class AppointmentController extends Controller
             ], 422);
         }
 
-        // Get the slot to find end_time
+        // Get slot to find end_time
         $dayOfWeek = Carbon::parse($date)->dayOfWeek;
         $slot = DoctorSchedule::where('user_id', $doctorId)
                                ->where('day_of_week', $dayOfWeek)
@@ -80,7 +56,7 @@ class AppointmentController extends Controller
             ], 422);
         }
 
-        // Check slot is free (Layer 1 — application check)
+        // Check slot not already actively booked
         $alreadyBooked = Appointment::where('doctor_id', $doctorId)
                                     ->where('appointment_date', $date)
                                     ->where('start_time', $startTime)
@@ -94,7 +70,6 @@ class AppointmentController extends Controller
         }
 
         try {
-            // DB transaction — if anything fails, nothing is saved
             $appointment = DB::transaction(function () use ($validated, $date, $startTime, $slot) {
                 return Appointment::create([
                     'doctor_id'        => $validated['doctor_id'],
@@ -105,12 +80,11 @@ class AppointmentController extends Controller
                     'appointment_date' => $date,
                     'start_time'       => $startTime,
                     'end_time'         => $slot->end_time,
-                    'status'           => 'confirmed',
+                    'status'           => 'pending',   // always starts as pending
                     'patient_notes'    => $validated['patient_notes'] ?? null,
                 ]);
             });
 
-            // Load relationships for notifications
             $appointment->load(['doctor', 'service']);
 
             $formattedDate = Carbon::parse($date)->format('D, d M Y');
@@ -118,38 +92,50 @@ class AppointmentController extends Controller
             $serviceName   = $appointment->service?->name ?? 'Dental Appointment';
             $doctorName    = $appointment->doctor->name;
 
-            // WhatsApp to patient
+            // Frontend URL for the booking/reschedule page
+            $bookingLink   = config('app.frontend_url') . '/appointments';
+            $approveLink   = config('app.frontend_url') . '/doctor/appointments/' . $appointment->id;
+
+            // ── Notify patient — pending confirmation ─────────
             $this->whatsapp->send(
                 $appointment->patient_phone,
-                "Hello {$appointment->patient_name}! Your appointment has been confirmed.\n\n" .
-                "Doctor: {$doctorName}\n" .
-                "Service: {$serviceName}\n" .
-                "Date: {$formattedDate}\n" .
-                "Time: {$formattedTime}\n\n" .
-                "Please arrive 10 minutes early. See you soon!"
+                "Hello {$appointment->patient_name}! 👋\n\n" .
+                "Your appointment request has been received.\n\n" .
+                "🏥 Doctor: {$doctorName}\n" .
+                "💊 Service: {$serviceName}\n" .
+                "📅 Date: {$formattedDate}\n" .
+                "⏰ Time: {$formattedTime}\n\n" .
+                "Your appointment is currently *pending confirmation*. " .
+                "You will receive another message once the doctor confirms.\n\n" .
+                "Thank you for choosing us!"
             );
 
-            // WhatsApp to doctor
+            // ── Notify doctor — new request with approve link ─
             $this->whatsapp->send(
                 $appointment->doctor->phone,
-                "New appointment booked!\n\n" .
-                "Patient: {$appointment->patient_name}\n" .
-                "Phone: {$appointment->patient_phone}\n" .
-                "Service: {$serviceName}\n" .
-                "Date: {$formattedDate}\n" .
-                "Time: {$formattedTime}"
+                "🔔 New Appointment Request!\n\n" .
+                "👤 Patient: {$appointment->patient_name}\n" .
+                "📞 Phone: {$appointment->patient_phone}\n" .
+                "💊 Service: {$serviceName}\n" .
+                "📅 Date: {$formattedDate}\n" .
+                "⏰ Time: {$formattedTime}\n" .
+                ($appointment->patient_notes
+                    ? "📝 Notes: {$appointment->patient_notes}\n"
+                    : "") .
+                "\nPlease approve or reject:\n" .
+                "🔗 {$approveLink}"
             );
 
             return response()->json([
-                'message'        => 'Appointment booked successfully.',
+                'message'        => 'Appointment request submitted. You will be notified once confirmed.',
                 'appointment_id' => $appointment->id,
+                'status'         => 'pending',
                 'date'           => $formattedDate,
                 'time'           => $formattedTime,
                 'doctor'         => $doctorName,
             ], 201);
 
         } catch (\Illuminate\Database\QueryException $e) {
-            // Layer 2 — DB unique index caught a race condition
             if ($e->getCode() === '23000') {
                 return response()->json([
                     'message' => 'This slot was just taken. Please choose another time.',

@@ -1,5 +1,6 @@
 <?php
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\Admin\AppointmentController as AdminAppointmentController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\SlotController;
 use App\Http\Controllers\Api\AppointmentController;
@@ -52,15 +53,18 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/blocked-dates/{id}',[ScheduleController::class, 'unblockDate']);
 
         // Appointments
-        Route::get('/appointments',                   [DoctorAppointmentController::class, 'index']);
-        Route::patch('/appointments/{id}/complete',   [DoctorAppointmentController::class, 'markComplete']);
-        Route::patch('/appointments/{id}/reschedule', [DoctorAppointmentController::class, 'reschedule']);
+       Route::get('/appointments',                      [DoctorAppointmentController::class, 'index']);
+    Route::patch('/appointments/{id}/approve',       [DoctorAppointmentController::class, 'approve']);
+    Route::patch('/appointments/{id}/reject',        [DoctorAppointmentController::class, 'reject']);
+    Route::patch('/appointments/{id}/reschedule',    [DoctorAppointmentController::class, 'reschedule']);
+    Route::patch('/appointments/{id}/complete',      [DoctorAppointmentController::class, 'markComplete']);
     });
 
     // ── Admin ────────────────────────────────────────────────
     Route::middleware('is_admin')->prefix('admin')->group(function () {
 
         // Doctor account management
+        Route::get('/users',                     [AdminUserController::class, 'index']);
         Route::post('/users',                   [AdminUserController::class, 'store']);
         Route::patch('/users/{id}',             [AdminUserController::class, 'update']);
         Route::patch('/users/{id}/toggle',      [AdminUserController::class, 'toggle']);
@@ -71,5 +75,10 @@ Route::middleware('auth:sanctum')->group(function () {
         // Doctor profile — admin view/edit
         Route::get('/users/{id}/profile',       [AdminDoctorProfileController::class, 'show']);
         Route::patch('/users/{id}/profile',     [AdminDoctorProfileController::class, 'update']);
+
+          Route::get('/appointments',              [AdminAppointmentController::class, 'index']);
+    Route::get('/appointments/{id}',         [AdminAppointmentController::class, 'show']);
+    Route::patch('/appointments/{id}',       [AdminAppointmentController::class, 'update']);
+    Route::delete('/appointments/{id}',      [AdminAppointmentController::class, 'destroy']);
     });
 });
