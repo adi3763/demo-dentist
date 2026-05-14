@@ -41,6 +41,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/profile/photo',            [DoctorProfileController::class, 'uploadPhoto']);
         Route::patch('/profile/change-password', [DoctorProfileController::class, 'changePassword']);
 
+        // View other doctors (read-only)
+        Route::get('/doctors',                   [DoctorProfileController::class, 'listDoctors']);
+        Route::get('/doctors/{id}',              [DoctorProfileController::class, 'viewOtherDoctor']);
+
         // Schedule — order matters, specific routes before {id} routes
         Route::get('/schedule',                  [ScheduleController::class, 'index']);
         Route::post('/schedule/bulk',            [ScheduleController::class, 'bulkStore']);

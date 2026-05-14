@@ -121,4 +121,43 @@ class ProfileController extends Controller
             'message' => 'Password changed successfully.',
         ]);
     }
-}
+
+    // GET /api/doctor/doctors
+    // List all active doctors (read-only for other doctors)
+    public function listDoctors(Request $request)
+    {
+        $doctors = User::where('role', 'doctor')
+            ->where('is_active', true)
+            ->with('profile')
+            ->get()
+            ->map(function ($doctor) {
+                return [
+                    'id'              => $doctor->id,
+                    'name'            => $doctor->name,
+                    'email'           => $doctor->email,
+                    'phone'           => $doctor->phone,
+                    'specialization'  => $doctor->specialization,
+                    'profile'         => $doctor->profile,
+                ];
+            });
+
+        return response()->json([
+            'doctors' => $doctors,
+        ]);
+    }
+
+    // GET /api/doctor/doctors/{id}
+    // View another doctor's profile (read-only)
+    public function viewOtherDoctor(Request $request, $id)
+    {
+        $doctor = User::where('role', 'doctor')
+            ->where('is_active', true)
+            ->where('id', $id)
+            ->with('profile')
+            ->firstOrFail();
+
+        return response()->json([
+            'user'    => $doctor->only('id', 'name', 'email', 'phone', 'specialization'),
+            'profile' => $doctor->profile,
+        ]);
+    }
