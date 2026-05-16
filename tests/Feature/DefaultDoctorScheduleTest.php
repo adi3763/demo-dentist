@@ -56,6 +56,60 @@ class DefaultDoctorScheduleTest extends TestCase
             ->assertJsonPath('slots.0.start_time', '11:00:00');
     }
 
+    public function test_doctor_can_edit_a_saved_schedule_slot(): void
+    {
+        $doctor = $this->createDoctor();
+        $slot = DoctorSchedule::create([
+            'user_id' => $doctor->id,
+            'day_of_week' => 1,
+            'start_time' => '11:00:00',
+            'end_time' => '11:30:00',
+            'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($doctor, 'sanctum')->patchJson("/api/doctor/schedule/{$slot->id}", [
+            'day_of_week' => 2,
+            'start_time' => '12:00',
+            'end_time' => '12:30',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('message', 'Slot updated successfully.')
+            ->assertJsonPath('slot.day_of_week', 2)
+            ->assertJsonPath('slot.start_time', '12:00:00')
+            ->assertJsonPath('slot.end_time', '12:30:00');
+    }
+
+    public function test_doctor_cannot_edit_slot_to_duplicate_day_and_start_time(): void
+    {
+        $doctor = $this->createDoctor();
+
+        DoctorSchedule::create([
+            'user_id' => $doctor->id,
+            'day_of_week' => 1,
+            'start_time' => '11:00:00',
+            'end_time' => '11:30:00',
+            'is_active' => true,
+        ]);
+
+        $slot = DoctorSchedule::create([
+            'user_id' => $doctor->id,
+            'day_of_week' => 1,
+            'start_time' => '12:00:00',
+            'end_time' => '12:30:00',
+            'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($doctor, 'sanctum')->patchJson("/api/doctor/schedule/{$slot->id}", [
+            'day_of_week' => 1,
+            'start_time' => '11:00',
+            'end_time' => '11:30',
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('message', 'Another slot already uses this day and start time.');
+    }
+
     private function createDoctor(): User
     {
         return User::create([

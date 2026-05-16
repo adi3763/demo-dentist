@@ -50,6 +50,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/schedule/default',         [ScheduleController::class, 'applyDefault']);
         Route::post('/schedule/bulk',            [ScheduleController::class, 'bulkStore']);
         Route::post('/schedule',                 [ScheduleController::class, 'store']);
+        Route::patch('/schedule/{id}',           [ScheduleController::class, 'update']);
         Route::patch('/schedule/{id}/toggle',    [ScheduleController::class, 'toggle']);
         Route::delete('/schedule/clear',         [ScheduleController::class, 'clearDay']);
         Route::delete('/schedule/{id}',          [ScheduleController::class, 'destroy']);

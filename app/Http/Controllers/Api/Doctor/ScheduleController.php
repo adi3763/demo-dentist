@@ -75,6 +75,46 @@ class ScheduleController extends Controller
         ], 201);
     }
 
+    // PATCH /api/doctor/schedule/{id}
+    // Doctor edits an existing saved slot.
+    public function update(Request $request, $id)
+    {
+        $slot = DoctorSchedule::where('user_id', $request->user()->id)
+                              ->findOrFail($id);
+
+        $validated = $request->validate([
+            'day_of_week' => 'required|integer|between:0,6',
+            'start_time'  => 'required|date_format:H:i',
+            'end_time'    => 'required|date_format:H:i|after:start_time',
+        ]);
+
+        $startTime = $validated['start_time'] . ':00';
+        $endTime = $validated['end_time'] . ':00';
+
+        $exists = DoctorSchedule::where('user_id', $request->user()->id)
+                                ->where('day_of_week', $validated['day_of_week'])
+                                ->where('start_time', $startTime)
+                                ->where('id', '!=', $slot->id)
+                                ->exists();
+
+        if ($exists) {
+            return response()->json([
+                'message' => 'Another slot already uses this day and start time.',
+            ], 422);
+        }
+
+        $slot->update([
+            'day_of_week' => $validated['day_of_week'],
+            'start_time'  => $startTime,
+            'end_time'    => $endTime,
+        ]);
+
+        return response()->json([
+            'message' => 'Slot updated successfully.',
+            'slot'    => $slot,
+        ]);
+    }
+
     // DELETE /api/doctor/schedule/{id}
     // Doctor removes a slot from their schedule
     public function destroy(Request $request, $id)
