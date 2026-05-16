@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\SlotController;
 use App\Http\Controllers\Api\AppointmentController;
 use App\Http\Controllers\Api\ContactController;
 use App\Http\Controllers\Api\Doctor\ScheduleController;
+use App\Http\Controllers\Api\Doctor\DashboardController as DoctorDashboardController;
 use App\Http\Controllers\Api\Doctor\AppointmentController as DoctorAppointmentController;
 use App\Http\Controllers\Api\Doctor\ProfileController as DoctorProfileController;
 use App\Http\Controllers\Api\Admin\UserController as AdminUserController;
@@ -34,6 +35,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // ── Doctor ───────────────────────────────────────────────
     Route::middleware('is_doctor')->prefix('doctor')->group(function () {
+
+        // Dashboard
+        Route::get('/dashboard',                 [DoctorDashboardController::class, 'index']);
 
         // Profile
         Route::get('/profile',                   [DoctorProfileController::class, 'show']);

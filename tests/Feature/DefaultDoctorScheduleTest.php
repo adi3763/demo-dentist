@@ -3,7 +3,10 @@
 namespace Tests\Feature;
 
 use App\Models\DoctorSchedule;
+use App\Models\Appointment;
+use App\Models\Service;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -108,6 +111,65 @@ class DefaultDoctorScheduleTest extends TestCase
 
         $response->assertStatus(422)
             ->assertJsonPath('message', 'Another slot already uses this day and start time.');
+    }
+
+    public function test_doctor_dashboard_only_contains_logged_in_doctor_data(): void
+    {
+        Carbon::setTestNow('2026-05-18 09:00:00');
+
+        $doctor = $this->createDoctor();
+        $otherDoctor = $this->createDoctor();
+        $service = Service::create([
+            'name' => 'Cleaning',
+            'duration_minutes' => 30,
+            'is_active' => true,
+        ]);
+
+        Appointment::create([
+            'doctor_id' => $doctor->id,
+            'patient_name' => 'Patient One',
+            'patient_phone' => '9999999999',
+            'service_id' => $service->id,
+            'appointment_date' => '2026-05-18',
+            'start_time' => '10:00:00',
+            'end_time' => '10:30:00',
+            'status' => 'pending',
+        ]);
+
+        Appointment::create([
+            'doctor_id' => $doctor->id,
+            'patient_name' => 'Patient Two',
+            'patient_phone' => '8888888888',
+            'appointment_date' => '2026-05-19',
+            'start_time' => '11:00:00',
+            'end_time' => '11:30:00',
+            'status' => 'confirmed',
+        ]);
+
+        Appointment::create([
+            'doctor_id' => $otherDoctor->id,
+            'patient_name' => 'Other Patient',
+            'patient_phone' => '7777777777',
+            'appointment_date' => '2026-05-18',
+            'start_time' => '12:00:00',
+            'end_time' => '12:30:00',
+            'status' => 'pending',
+        ]);
+
+        $response = $this->actingAs($doctor, 'sanctum')->getJson('/api/doctor/dashboard');
+
+        $response->assertOk()
+            ->assertJsonPath('doctor.id', $doctor->id)
+            ->assertJsonPath('stats.total_appointments', 2)
+            ->assertJsonPath('stats.today_appointments', 1)
+            ->assertJsonPath('stats.upcoming_appointments', 2)
+            ->assertJsonPath('stats.pending', 1)
+            ->assertJsonPath('stats.confirmed', 1)
+            ->assertJsonPath('today_appointments.0.patient_name', 'Patient One')
+            ->assertJsonPath('upcoming_appointments.0.service', 'Cleaning')
+            ->assertJsonPath('schedule.using_default_schedule', true);
+
+        Carbon::setTestNow();
     }
 
     private function createDoctor(): User
