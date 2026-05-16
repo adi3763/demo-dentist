@@ -85,9 +85,13 @@ class ProfileController extends Controller
 
         $profile->update(['photo' => $path]);
 
+        // Return full backend URL for cross-origin access
+        $backendUrl = rtrim(config('app.url'), '/');
+        $photoUrl = $backendUrl . '/storage/' . $path;
+
         return response()->json([
             'message'   => 'Photo uploaded.',
-            'photo_url' => asset('storage/' . $path),
+            'photo_url' => $photoUrl,
         ]);
     }
 
