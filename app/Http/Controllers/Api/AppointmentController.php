@@ -3,9 +3,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Appointment;
-use App\Models\DoctorSchedule;
 use App\Models\BlockedDate;
-use App\Models\User;
+use App\Services\DoctorAvailabilityService;
 use App\Services\WhatsAppService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -13,7 +12,10 @@ use Carbon\Carbon;
 
 class AppointmentController extends Controller
 {
-    public function __construct(protected WhatsAppService $whatsapp) {}
+    public function __construct(
+        protected WhatsAppService $whatsapp,
+        protected DoctorAvailabilityService $availability
+    ) {}
 
     // POST /api/appointments
     public function store(Request $request)
@@ -42,17 +44,15 @@ class AppointmentController extends Controller
             ], 422);
         }
 
-        // Get slot to find end_time
+        // Get slot to find end_time. Doctors get the default regular schedule
+        // automatically until they create a custom schedule.
         $dayOfWeek = Carbon::parse($date)->dayOfWeek;
-        $slot = DoctorSchedule::where('user_id', $doctorId)
-                               ->where('day_of_week', $dayOfWeek)
-                               ->where('start_time', $startTime)
-                               ->where('is_active', true)
-                               ->first();
+        $slot = $this->availability->slotsForDay($doctorId, $dayOfWeek)
+                                   ->firstWhere('start_time', $startTime);
 
         if (! $slot) {
             return response()->json([
-                'message' => 'This time slot does not exist.',
+                'message' => 'This time slot is not available.',
             ], 422);
         }
 

@@ -5,20 +5,28 @@ namespace App\Http\Controllers\Api\Doctor;
 use App\Http\Controllers\Controller;
 use App\Models\DoctorSchedule;
 use App\Models\BlockedDate;
+use App\Services\DoctorAvailabilityService;
 use Illuminate\Http\Request;
 
 class ScheduleController extends Controller
 {
+    public function __construct(protected DoctorAvailabilityService $availability) {}
+
     // GET /api/doctor/schedule
     // Doctor sees their own schedule
     public function index(Request $request)
     {
-        $schedule = DoctorSchedule::where('user_id', $request->user()->id)
+        $doctorId = $request->user()->id;
+        $usingDefaultSchedule = ! $this->availability->hasCustomSchedule($doctorId);
+
+        $schedule = $usingDefaultSchedule
+            ? $this->availability->defaultSlotsForWeek()
+            : DoctorSchedule::where('user_id', $doctorId)
                                   ->orderBy('day_of_week')
                                   ->orderBy('start_time')
                                   ->get();
 
-        $blocked = BlockedDate::where('user_id', $request->user()->id)
+        $blocked = BlockedDate::where('user_id', $doctorId)
                               ->where('blocked_date', '>=', today())
                               ->orderBy('blocked_date')
                               ->get();
@@ -26,6 +34,8 @@ class ScheduleController extends Controller
         return response()->json([
             'schedule'      => $schedule,
             'blocked_dates' => $blocked,
+            'using_default_schedule' => $usingDefaultSchedule,
+            'default_schedule' => $this->availability->defaultSummary(),
         ]);
     }
 
@@ -149,6 +159,19 @@ class ScheduleController extends Controller
             'message' => "{$created} slots added, {$skipped} already existed.",
             'created' => $created,
             'skipped' => $skipped,
+        ]);
+    }
+
+    // POST /api/doctor/schedule/default
+    // Save the regular clinic schedule as editable slots for this doctor.
+    public function applyDefault(Request $request)
+    {
+        $result = $this->availability->createDefaultScheduleForDoctor($request->user()->id);
+
+        return response()->json([
+            'message' => "{$result['created']} default slots added, {$result['skipped']} already existed.",
+            'created' => $result['created'],
+            'skipped' => $result['skipped'],
         ]);
     }
 

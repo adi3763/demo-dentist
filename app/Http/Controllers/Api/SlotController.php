@@ -2,17 +2,19 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\DoctorSchedule;
 use App\Models\BlockedDate;
 use App\Models\Appointment;
 use App\Models\Service;
 use App\Models\User;
+use App\Services\DoctorAvailabilityService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Carbon\Carbon;
 
 class SlotController extends Controller
 {
+    public function __construct(protected DoctorAvailabilityService $availability) {}
+
     // GET /api/slots?date=2026-04-21&doctor_id=2
     public function available(Request $request)
     {
@@ -46,18 +48,19 @@ class SlotController extends Controller
 
         $dayOfWeek = $requestedDate->dayOfWeek;
 
-        // All active schedule slots for this doctor on this day
-        $allSlots = DoctorSchedule::where('user_id', $doctorId)
-                                  ->where('day_of_week', $dayOfWeek)
-                                  ->where('is_active', true)
-                                  ->orderBy('start_time')
-                                  ->get();
+        // Use the doctor's custom schedule when present, otherwise fall back
+        // to the regular clinic schedule so doctors do not have to set basics.
+        $usingDefaultSchedule = ! $this->availability->hasCustomSchedule($doctorId);
+        $allSlots = $this->availability->slotsForDay($doctorId, $dayOfWeek);
 
         if ($allSlots->isEmpty()) {
             return response()->json([
                 'slots'    => [],
                 'available'=> false,
-                'message'  => 'Doctor has no schedule on this date.',
+                'using_default_schedule' => $usingDefaultSchedule,
+                'message'  => $usingDefaultSchedule
+                    ? 'Doctor is not available on this day.'
+                    : 'Doctor has no schedule on this date.',
             ]);
         }
 
@@ -96,7 +99,10 @@ class SlotController extends Controller
             ];
         });
 
-        return response()->json(['slots' => $slots]);
+        return response()->json([
+            'slots' => $slots,
+            'using_default_schedule' => $usingDefaultSchedule,
+        ]);
     }
 
     // GET /api/services

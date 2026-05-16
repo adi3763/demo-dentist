@@ -47,6 +47,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Schedule — order matters, specific routes before {id} routes
         Route::get('/schedule',                  [ScheduleController::class, 'index']);
+        Route::post('/schedule/default',         [ScheduleController::class, 'applyDefault']);
         Route::post('/schedule/bulk',            [ScheduleController::class, 'bulkStore']);
         Route::post('/schedule',                 [ScheduleController::class, 'store']);
         Route::patch('/schedule/{id}/toggle',    [ScheduleController::class, 'toggle']);
