@@ -162,3 +162,4 @@ class ProfileController extends Controller
             'profile' => $doctor->profile,
         ]);
     }
+}
