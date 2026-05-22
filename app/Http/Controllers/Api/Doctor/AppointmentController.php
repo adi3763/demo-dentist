@@ -146,7 +146,7 @@ class AppointmentController extends Controller
         $formattedNewDate = Carbon::parse($newDate)->format('D, d M Y');
         $formattedNewTime = Carbon::parse($newStartTime)->format('h:i A');
         $doctorName       = $request->user()->name;
-        $rebookLink       = config('app.frontend_url') . '/book';
+        $rebookLink       = rtrim(config('app.frontend_url'), '/');
 
         // ── Notify patient — rescheduled ──────────────────────
         $this->whatsapp->send(
