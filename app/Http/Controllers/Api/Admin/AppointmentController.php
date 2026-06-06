@@ -23,8 +23,7 @@ class AppointmentController extends Controller
                     $query->where('patient_name', 'like', '%' . $request->search . '%')
                           ->orWhere('patient_phone', 'like', '%' . $request->search . '%');
                 }))
-            ->orderBy('appointment_date', 'desc')
-            ->orderBy('start_time')
+            ->orderBy('created_at', 'desc')
             ->paginate(20);
 
         return response()->json($appointments);

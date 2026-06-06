@@ -21,8 +21,7 @@ class AppointmentController extends Controller
                 fn($q) => $q->whereDate('appointment_date', $request->date))
             ->when($request->status,
                 fn($q) => $q->where('status', $request->status))
-            ->orderBy('appointment_date')
-            ->orderBy('start_time')
+            ->orderBy('created_at', 'desc')
             ->get();
 
         return response()->json(['appointments' => $appointments]);
