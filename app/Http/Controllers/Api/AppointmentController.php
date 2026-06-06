@@ -94,7 +94,7 @@ class AppointmentController extends Controller
 
             // Frontend URL for the booking/reschedule page
             $bookingLink   = config('app.frontend_url') . '/appointments';
-            $approveLink   = config('app.frontend_url') . '/doctor/appointments/' . $appointment->id;
+            $approveLink   = config('app.frontend_url') . '/admin/appointments';
 
             // ── Notify patient — pending confirmation ─────────
             $this->whatsapp->send(
