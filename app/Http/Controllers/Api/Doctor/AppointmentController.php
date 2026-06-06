@@ -33,17 +33,36 @@ class AppointmentController extends Controller
     }
 
     // PATCH /api/doctor/appointments/{id}/approve
-    // Doctor approves a pending appointment
+    // Doctor approves a pending/rescheduled appointment
     public function approve(Request $request, $id)
     {
         $appointment = Appointment::where('doctor_id', $request->user()->id)
-                                  ->where('status', 'pending')
+                                  ->whereIn('status', ['pending', 'rescheduled'])
                                   ->findOrFail($id);
 
-        $appointment->update([
+        $updateData = [
             'status'      => 'confirmed',
             'approved_at' => now(),
-        ]);
+        ];
+
+        // If the appointment was rescheduled, promote the proposed rescheduled date/time to the actual slot
+        if ($appointment->status === 'rescheduled' && $appointment->rescheduled_date) {
+            $updateData['appointment_date'] = $appointment->rescheduled_date;
+            $updateData['start_time']       = $appointment->rescheduled_start_time;
+            
+            $durationMinutes = 30; // default duration
+            if ($appointment->start_time && $appointment->end_time) {
+                $durationMinutes = Carbon::parse($appointment->start_time)->diffInMinutes(Carbon::parse($appointment->end_time));
+            }
+            $updateData['end_time'] = Carbon::parse($appointment->rescheduled_start_time)->addMinutes($durationMinutes)->format('H:i:s');
+            
+            // Clear proposed rescheduled slot since it is now confirmed
+            $updateData['rescheduled_date']       = null;
+            $updateData['rescheduled_start_time'] = null;
+            $updateData['reschedule_reason']      = null;
+        }
+
+        $appointment->update($updateData);
 
         $appointment->load('service');
 
@@ -80,16 +99,19 @@ class AppointmentController extends Controller
         ]);
 
         $appointment = Appointment::where('doctor_id', $request->user()->id)
-                                  ->where('status', 'pending')
+                                  ->whereIn('status', ['pending', 'rescheduled'])
                                   ->findOrFail($id);
 
         $appointment->update([
-            'status'          => 'rejected',
-            'rejected_reason' => $request->reason,
-            'rejected_at'     => now(),
+            'status'                 => 'rejected',
+            'rejected_reason'        => $request->reason,
+            'rejected_at'            => now(),
+            'rescheduled_date'       => null,
+            'rescheduled_start_time' => null,
+            'reschedule_reason'      => null,
         ]);
 
-        $rebookLink  = config('app.frontend_url') . '/book';
+        $rebookLink  = config('app.frontend_url');
         $doctorName  = $request->user()->name;
 
         // ── Notify patient — rejected with reason ─────────────

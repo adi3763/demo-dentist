@@ -113,6 +113,25 @@ class AppointmentController extends Controller
             $updateData['rejected_at'] = now();
         }
 
+        // Promote proposed slot to actual slot if admin confirms a rescheduled appointment
+        if ($newStatus === 'confirmed' && $oldStatus === 'rescheduled' && $appointment->rescheduled_date) {
+            $updateData['appointment_date'] = $appointment->rescheduled_date;
+            $updateData['start_time']       = $appointment->rescheduled_start_time;
+            
+            $durationMinutes = 30;
+            if ($appointment->start_time && $appointment->end_time) {
+                $durationMinutes = Carbon::parse($appointment->start_time)->diffInMinutes(Carbon::parse($appointment->end_time));
+            }
+            $updateData['end_time'] = Carbon::parse($appointment->rescheduled_start_time)->addMinutes($durationMinutes)->format('H:i:s');
+        }
+
+        // Clean up rescheduled slot fields if status is not 'rescheduled'
+        if ($newStatus !== 'rescheduled') {
+            $updateData['rescheduled_date']       = null;
+            $updateData['rescheduled_start_time'] = null;
+            $updateData['reschedule_reason']      = null;
+        }
+
         $appointment->update($updateData);
         $appointment->load(['doctor', 'service']);
 
