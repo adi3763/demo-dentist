@@ -84,6 +84,14 @@ class AppointmentController extends Controller
 
         $appointment->load(['doctor', 'service']);
 
+        \App\Models\ActivityLog::create([
+            'user_id' => $request->user()->id,
+            'action' => 'Rescheduled',
+            'description' => "Admin rescheduled appointment for patient {$appointment->patient_name}.",
+            'model_type' => Appointment::class,
+            'model_id' => $appointment->id,
+        ]);
+
         $this->sendWhatsAppNotification($appointment, 'rescheduled', $request->reason);
 
         return response()->json([
@@ -134,6 +142,14 @@ class AppointmentController extends Controller
 
         $appointment->update($updateData);
         $appointment->load(['doctor', 'service']);
+
+        \App\Models\ActivityLog::create([
+            'user_id' => $request->user()->id,
+            'action' => ucfirst($newStatus),
+            'description' => "Admin changed appointment status to {$newStatus} for patient {$appointment->patient_name}.",
+            'model_type' => Appointment::class,
+            'model_id' => $appointment->id,
+        ]);
 
         // Send WhatsApp notification if status changed
         if ($oldStatus !== $newStatus) {

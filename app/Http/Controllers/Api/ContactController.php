@@ -41,6 +41,14 @@ class ContactController extends Controller
         $submission->load('service');
         $serviceName = $submission->service?->name ?? 'Not specified';
 
+        \App\Models\ActivityLog::create([
+            'user_id' => null,
+            'action' => 'Contacted',
+            'description' => "Patient {$submission->name} submitted a contact form.",
+            'model_type' => ContactSubmission::class,
+            'model_id' => $submission->id,
+        ]);
+
         $doctorPhoneRecipients = User::query()
             ->where('role', 'doctor')
             ->where('is_active', true)

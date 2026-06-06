@@ -66,6 +66,12 @@ class DashboardController extends Controller
                                            ->take(5)
                                            ->get(['id','name','email','phone','status','created_at']);
 
+        // ── Recent activity logs ─────────────────────────────
+        $recentActivities = \App\Models\ActivityLog::with('user:id,name,role')
+                                           ->latest()
+                                           ->take(15)
+                                           ->get();
+
         return response()->json([
             'stats' => [
                 'appointments' => [
@@ -88,6 +94,7 @@ class DashboardController extends Controller
             'today_appointments' => $todayList,
             'chart_last_7_days'  => $last7Days,
             'recent_contacts'    => $recentContacts,
+            'recent_activities'  => $recentActivities,
         ]);
     }
 }

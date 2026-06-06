@@ -66,6 +66,14 @@ class AppointmentController extends Controller
 
         $appointment->load('service');
 
+        \App\Models\ActivityLog::create([
+            'user_id' => $request->user()->id,
+            'action' => 'Confirmed',
+            'description' => "Doctor confirmed appointment for patient {$appointment->patient_name}.",
+            'model_type' => Appointment::class,
+            'model_id' => $appointment->id,
+        ]);
+
         $formattedDate = Carbon::parse($appointment->appointment_date)->format('D, d M Y');
         $formattedTime = Carbon::parse($appointment->start_time)->format('h:i A');
         $serviceName   = $appointment->service?->name ?? 'Dental Appointment';
@@ -109,6 +117,14 @@ class AppointmentController extends Controller
             'rescheduled_date'       => null,
             'rescheduled_start_time' => null,
             'reschedule_reason'      => null,
+        ]);
+
+        \App\Models\ActivityLog::create([
+            'user_id' => $request->user()->id,
+            'action' => 'Rejected',
+            'description' => "Doctor rejected appointment for patient {$appointment->patient_name}.",
+            'model_type' => Appointment::class,
+            'model_id' => $appointment->id,
         ]);
 
         $rebookLink  = config('app.frontend_url');
@@ -169,6 +185,14 @@ class AppointmentController extends Controller
             'reschedule_reason'      => $request->reason,
         ]);
 
+        \App\Models\ActivityLog::create([
+            'user_id' => $request->user()->id,
+            'action' => 'Rescheduled',
+            'description' => "Doctor rescheduled appointment for patient {$appointment->patient_name}.",
+            'model_type' => Appointment::class,
+            'model_id' => $appointment->id,
+        ]);
+
         $formattedNewDate = Carbon::parse($newDate)->format('D, d M Y');
         $formattedNewTime = Carbon::parse($newStartTime)->format('h:i A');
         $doctorName       = $request->user()->name;
@@ -207,6 +231,14 @@ class AppointmentController extends Controller
                                   ->findOrFail($id);
 
         $appointment->update(['status' => 'completed']);
+
+        \App\Models\ActivityLog::create([
+            'user_id' => $request->user()->id,
+            'action' => 'Completed',
+            'description' => "Doctor marked appointment for patient {$appointment->patient_name} as completed.",
+            'model_type' => Appointment::class,
+            'model_id' => $appointment->id,
+        ]);
 
         return response()->json([
             'message' => 'Appointment marked as completed.',

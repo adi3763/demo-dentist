@@ -87,6 +87,14 @@ class AppointmentController extends Controller
 
             $appointment->load(['doctor', 'service']);
 
+            \App\Models\ActivityLog::create([
+                'user_id' => null,
+                'action' => 'Booked',
+                'description' => "Patient {$appointment->patient_name} booked a new appointment.",
+                'model_type' => Appointment::class,
+                'model_id' => $appointment->id,
+            ]);
+
             $formattedDate = Carbon::parse($date)->format('D, d M Y');
             $formattedTime = Carbon::parse($startTime)->format('h:i A');
             $serviceName   = $appointment->service?->name ?? 'Dental Appointment';
