@@ -131,10 +131,24 @@ class UserController extends Controller
     }
 
     // DELETE /api/admin/users/{id}
-    // Soft delete — record stays in DB, just hidden
-    public function destroy($id)
+    // Soft delete or permanent force delete
+    public function destroy(Request $request, $id)
     {
-        $user = User::where('role', 'doctor')->findOrFail($id);
+        $force = $request->boolean('force') || $request->boolean('permanent');
+
+        $query = User::where('role', 'doctor');
+        if ($force) {
+            $query->withTrashed();
+        }
+
+        $user = $query->findOrFail($id);
+
+        if ($force) {
+            $user->forceDelete();
+            return response()->json([
+                'message' => 'Doctor account permanently deleted.',
+            ]);
+        }
 
         // Revoke all tokens so doctor is logged out immediately
         $user->tokens()->delete();
