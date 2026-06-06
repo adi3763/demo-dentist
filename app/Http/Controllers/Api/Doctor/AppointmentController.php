@@ -21,10 +21,15 @@ class AppointmentController extends Controller
                 fn($q) => $q->whereDate('appointment_date', $request->date))
             ->when($request->status,
                 fn($q) => $q->where('status', $request->status))
+            ->when($request->search,
+                fn($q) => $q->where(function ($query) use ($request) {
+                    $query->where('patient_name', 'like', '%' . $request->search . '%')
+                          ->orWhere('patient_phone', 'like', '%' . $request->search . '%');
+                }))
             ->orderBy('created_at', 'desc')
-            ->get();
+            ->paginate(15);
 
-        return response()->json(['appointments' => $appointments]);
+        return response()->json($appointments);
     }
 
     // PATCH /api/doctor/appointments/{id}/approve
@@ -145,7 +150,11 @@ class AppointmentController extends Controller
         $formattedNewDate = Carbon::parse($newDate)->format('D, d M Y');
         $formattedNewTime = Carbon::parse($newStartTime)->format('h:i A');
         $doctorName       = $request->user()->name;
-        $rebookLink       = rtrim(config('app.frontend_url'), '/');
+
+        // Build clinic WhatsApp click-to-chat link
+        $clinicWhatsapp = config('services.clinic.whatsapp');
+        $waText = urlencode("Hi, I'd like to rebook my appointment (Patient: {$appointment->patient_name}).");
+        $waLink = "https://wa.me/{$clinicWhatsapp}?text={$waText}";
 
         // ── Notify patient — rescheduled ──────────────────────
         $this->whatsapp->send(
@@ -154,11 +163,11 @@ class AppointmentController extends Controller
             "Hello {$appointment->patient_name}, your appointment with " .
             "{$doctorName} has been rescheduled.\n\n" .
             "📋 Reason: {$request->reason}\n\n" .
-            "New Details:\n" .
-            "📅 New Date: {$formattedNewDate}\n" .
-            "⏰ New Time: {$formattedNewTime}\n\n" .
-            "If this time does not suit you, please rebook:\n" .
-            "🔗 {$rebookLink}\n\n" .
+            "Proposed New Slot:\n" .
+            "📅 Date: {$formattedNewDate}\n" .
+            "⏰ Time: {$formattedNewTime}\n\n" .
+            "If this time doesn't suit you, message us on WhatsApp to find a better slot:\n" .
+            "💬 {$waLink}\n\n" .
             "We apologize for the inconvenience."
         );
 

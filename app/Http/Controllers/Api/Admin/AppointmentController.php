@@ -47,8 +47,53 @@ class AppointmentController extends Controller
         ]);
     }
 
+    // PATCH /api/admin/appointments/{id}/reschedule
+    // Admin reschedules with a specific new date, time & reason (mirrors doctor's flow)
+    public function reschedule(Request $request, $id)
+    {
+        $request->validate([
+            'new_date' => 'required|date|after_or_equal:today',
+            'new_time' => 'required|date_format:H:i',
+            'reason'   => 'required|string|max:500',
+        ]);
+
+        $appointment  = Appointment::findOrFail($id);
+        $newStartTime = $request->new_time . ':00';
+        $newDate      = $request->new_date;
+
+        // Check that the new slot is free for this doctor
+        $conflict = Appointment::where('doctor_id', $appointment->doctor_id)
+                               ->where('appointment_date', $newDate)
+                               ->where('start_time', $newStartTime)
+                               ->whereIn('status', ['pending', 'confirmed'])
+                               ->where('id', '!=', $id)
+                               ->exists();
+
+        if ($conflict) {
+            return response()->json([
+                'message' => 'The new time slot is already booked for this doctor.',
+            ], 409);
+        }
+
+        $appointment->update([
+            'status'                 => 'rescheduled',
+            'rescheduled_date'       => $newDate,
+            'rescheduled_start_time' => $newStartTime,
+            'reschedule_reason'      => $request->reason,
+        ]);
+
+        $appointment->load(['doctor', 'service']);
+
+        $this->sendWhatsAppNotification($appointment, 'rescheduled', $request->reason);
+
+        return response()->json([
+            'message'     => 'Appointment rescheduled. Patient has been notified via WhatsApp.',
+            'appointment' => $appointment->fresh(['doctor:id,name', 'service:id,name']),
+        ]);
+    }
+
     // PATCH /api/admin/appointments/{id}
-    // Admin force-updates any appointment status
+    // Admin force-updates any appointment status (generic — reschedule uses dedicated endpoint)
     public function update(Request $request, $id)
     {
         $appointment = Appointment::findOrFail($id);
@@ -56,8 +101,6 @@ class AppointmentController extends Controller
         $validated = $request->validate([
             'status' => 'required|in:pending,confirmed,rejected,rescheduled,completed,cancelled',
             'reason' => 'nullable|string|max:500',
-            'rescheduled_date' => 'nullable|date|after_or_equal:today',
-            'rescheduled_start_time' => 'nullable|date_format:H:i',
         ]);
 
         $oldStatus = $appointment->status;
@@ -68,14 +111,6 @@ class AppointmentController extends Controller
         if ($newStatus === 'rejected') {
             $updateData['rejected_reason'] = $validated['reason'] ?? 'Schedule conflict';
             $updateData['rejected_at'] = now();
-        } elseif ($newStatus === 'rescheduled') {
-            if (!empty($validated['rescheduled_date'])) {
-                $updateData['rescheduled_date'] = $validated['rescheduled_date'];
-            }
-            if (!empty($validated['rescheduled_start_time'])) {
-                $updateData['rescheduled_start_time'] = $validated['rescheduled_start_time'] . ':00';
-            }
-            $updateData['reschedule_reason'] = $validated['reason'] ?? 'Emergency reschedule';
         }
 
         $appointment->update($updateData);
@@ -102,6 +137,11 @@ class AppointmentController extends Controller
         $serviceName   = $appointment->service?->name ?? 'Dental Appointment';
         $doctorName    = $appointment->doctor?->name ?? 'Doctor';
 
+        // Build clinic WhatsApp click-to-chat link
+        $clinicWhatsapp = config('services.clinic.whatsapp');
+        $waText = urlencode("Hi, I'd like to rebook my appointment (Patient: {$appointment->patient_name}).");
+        $waLink = "https://wa.me/{$clinicWhatsapp}?text={$waText}";
+
         switch ($status) {
             case 'confirmed':
                 $this->whatsapp->send(
@@ -118,7 +158,6 @@ class AppointmentController extends Controller
                 break;
 
             case 'rejected':
-                $rebookLink = config('app.frontend_url') . '/book';
                 $rejectReason = $reason ?? $appointment->rejected_reason ?? 'Schedule conflict';
                 $this->whatsapp->send(
                     $appointment->patient_phone,
@@ -126,19 +165,18 @@ class AppointmentController extends Controller
                     "Hello {$appointment->patient_name}, unfortunately your appointment " .
                     "request could not be confirmed at this time.\n\n" .
                     "📋 Reason: {$rejectReason}\n\n" .
-                    "You can reschedule at a different time:\n" .
-                    "🔗 {$rebookLink}\n\n" .
+                    "To rebook at a convenient time, message us on WhatsApp:\n" .
+                    "💬 {$waLink}\n\n" .
                     "We apologize for the inconvenience."
                 );
                 break;
 
             case 'rescheduled':
-                $rescheduledDate = $appointment->rescheduled_date ?? $appointment->appointment_date;
-                $rescheduledTime = $appointment->rescheduled_start_time ?? $appointment->start_time;
+                $rescheduledDate      = $appointment->rescheduled_date ?? $appointment->appointment_date;
+                $rescheduledTime      = $appointment->rescheduled_start_time ?? $appointment->start_time;
                 $formattedReschedDate = Carbon::parse($rescheduledDate)->format('D, d M Y');
                 $formattedReschedTime = Carbon::parse($rescheduledTime)->format('h:i A');
-                $rebookLink = rtrim(config('app.frontend_url'), '/');
-                $reschedReason = $reason ?? $appointment->reschedule_reason ?? 'Emergency rescheduling';
+                $reschedReason        = $reason ?? $appointment->reschedule_reason ?? 'Emergency rescheduling';
 
                 $this->whatsapp->send(
                     $appointment->patient_phone,
@@ -146,11 +184,11 @@ class AppointmentController extends Controller
                     "Hello {$appointment->patient_name}, your appointment with " .
                     "{$doctorName} has been rescheduled.\n\n" .
                     "📋 Reason: {$reschedReason}\n\n" .
-                    "New Details:\n" .
-                    "📅 New Date: {$formattedReschedDate}\n" .
-                    "⏰ New Time: {$formattedReschedTime}\n\n" .
-                    "If this time does not suit you, please rebook:\n" .
-                    "🔗 {$rebookLink}\n\n" .
+                    "Proposed New Slot:\n" .
+                    "📅 Date: {$formattedReschedDate}\n" .
+                    "⏰ Time: {$formattedReschedTime}\n\n" .
+                    "If this time doesn't suit you, message us on WhatsApp to find a better slot:\n" .
+                    "💬 {$waLink}\n\n" .
                     "We apologize for the inconvenience."
                 );
                 break;
@@ -161,7 +199,9 @@ class AppointmentController extends Controller
                     "❌ Appointment Cancelled\n\n" .
                     "Hello {$appointment->patient_name}, your appointment with " .
                     "{$doctorName} on {$formattedDate} at {$formattedTime} has been cancelled.\n\n" .
-                    "If you did not request this, please contact us."
+                    "To rebook, message us on WhatsApp:\n" .
+                    "💬 {$waLink}\n\n" .
+                    "If you did not request this, please contact us immediately."
                 );
                 break;
         }

@@ -101,10 +101,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/services/{id}',            [AdminServiceController::class, 'destroy']);
 
         // Appointments
-        Route::get('/appointments',                [AdminAppointmentController::class, 'index']);
-        Route::get('/appointments/{id}',           [AdminAppointmentController::class, 'show']);
-        Route::patch('/appointments/{id}',         [AdminAppointmentController::class, 'update']);
-        Route::delete('/appointments/{id}',        [AdminAppointmentController::class, 'destroy']);
+        Route::get('/appointments',                        [AdminAppointmentController::class, 'index']);
+        Route::get('/appointments/{id}',                   [AdminAppointmentController::class, 'show']);
+        Route::patch('/appointments/{id}/reschedule',      [AdminAppointmentController::class, 'reschedule']);
+        Route::patch('/appointments/{id}',                 [AdminAppointmentController::class, 'update']);
+        Route::delete('/appointments/{id}',                [AdminAppointmentController::class, 'destroy']);
 
         // Contacts
         Route::get('/contacts',                    [AdminContactController::class, 'index']);

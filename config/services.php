@@ -45,6 +45,12 @@ return [
         'notification_email' => env('CONTACT_NOTIFICATION_EMAIL'),
     ],
 
+    // Clinic WhatsApp number for patient click-to-chat links
+    // Format: country code + number, no +, no spaces (e.g. 919876543210)
+    'clinic' => [
+        'whatsapp' => env('CLINIC_WHATSAPP_NUMBER', '919999999999'),
+    ],
+
 ];
 
 
