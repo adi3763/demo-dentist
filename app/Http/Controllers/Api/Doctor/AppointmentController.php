@@ -99,7 +99,7 @@ class AppointmentController extends Controller
         ]);
 
         $appointment = Appointment::where('doctor_id', $request->user()->id)
-                                  ->whereIn('status', ['pending', 'rescheduled'])
+                                  ->whereIn('status', ['pending', 'confirmed', 'rescheduled'])
                                   ->findOrFail($id);
 
         $appointment->update([
@@ -142,7 +142,7 @@ class AppointmentController extends Controller
         ]);
 
         $appointment = Appointment::where('doctor_id', $request->user()->id)
-                                  ->whereIn('status', ['pending', 'confirmed'])
+                                  ->whereIn('status', ['pending', 'confirmed', 'rescheduled'])
                                   ->findOrFail($id);
 
         $newStartTime = $request->new_time . ':00';
